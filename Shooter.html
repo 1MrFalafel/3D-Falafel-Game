@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Falafel Games|Shooter</title>
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      background-color: #222;
+    }
+    #renderCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #score {
+      position: absolute;
+      color: white;
+      font-size: 20px;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      font-family: Arial, sans-serif;
+      user-select: none;
+    }
+    #fullscreenBtn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 10;
+      background: #444;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      user-select: none;
+      transition: background 0.3s;
+    }
+    #fullscreenBtn:hover {
+      background: #666;
+    }
+  </style>
+</head>
+<body>
+  <div id="score">Score: 0</div>
+  <button id="fullscreenBtn">Full Screen</button>
+  <canvas id="renderCanvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById("renderCanvas");
+    const engine = new BABYLON.Engine(canvas, true);
+
+    const createScene = function () {
+      const scene = new BABYLON.Scene(engine);
+
+      // الكاميرا
+      const camera = new BABYLON.UniversalCamera("camera", new BABYLON.Vector3(0, 1.5, -10), scene);
+      camera.attachControl(canvas, true);
+      // ثبّت ارتفاع الكاميرا
+      scene.onBeforeRenderObservable.add(() => {
+        camera.position.y = 1.5;
+      });
+
+      // ضوء الشمس - Directional Light
+      const sun = new BABYLON.DirectionalLight("sun", new BABYLON.Vector3(-1, -2, 1), scene);
+      sun.position = new BABYLON.Vector3(20, 40, -20);
+      sun.intensity = 1.0;
+
+      // تفعيل الظلال لضوء الشمس
+      const shadowGenerator = new BABYLON.ShadowGenerator(1024, sun);
+      shadowGenerator.useBlurExponentialShadowMap = true;
+      shadowGenerator.blurKernel = 32;
+
+      // ضوء محيطي HemisphericLight لتحسين الإضاءة العامة
+      const hemiLight = new BABYLON.HemisphericLight("hemiLight", new BABYLON.Vector3(0, 1, 0), scene);
+      hemiLight.intensity = 0.3;
+      hemiLight.diffuse = new BABYLON.Color3(0.6, 0.6, 0.7);
+      hemiLight.specular = new BABYLON.Color3(0.2, 0.2, 0.25);
+
+      // الأرض
+      const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
+      const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+      groundMat.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+      ground.material = groundMat;
+      ground.receiveShadows = true;
+
+      // الهدف
+      const target = BABYLON.MeshBuilder.CreateCylinder("target", {
+        diameterTop: 1,
+        diameterBottom: 1,
+        height: 0.1,
+        tessellation: 64
+      }, scene);
+      target.position = new BABYLON.Vector3(Math.random() * 10 - 5, 1.5, Math.random() * 10 + 2);
+      target.rotation.x = Math.PI / 2;
+
+      // رسم نسيج الدائرة الملونة للهدف
+      const textureSize = 512;
+      const dynamicTexture = new BABYLON.DynamicTexture("dynamicTexture", {width: textureSize, height: textureSize}, scene, false);
+      const ctx = dynamicTexture.getContext();
+
+      ctx.clearRect(0, 0, textureSize, textureSize);
+
+      const center = textureSize / 2;
+      const rings = [
+        {radius: 200, color: "black"},
+        {radius: 160, color: "white"},
+        {radius: 120, color: "red"},
+        {radius: 80,  color: "white"},
+        {radius: 40,  color: "black"},
+      ];
+
+      rings.forEach(ring => {
+        ctx.beginPath();
+        ctx.fillStyle = ring.color;
+        ctx.arc(center, center, ring.radius, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      dynamicTexture.update();
+
+      const targetMaterial = new BABYLON.StandardMaterial("targetMat", scene);
+      targetMaterial.diffuseTexture = dynamicTexture;
+      targetMaterial.specularColor = new BABYLON.Color3(0, 0, 0);
+      target.material = targetMaterial;
+
+      // السماح للهدف بإسقاط الظل
+      shadowGenerator.addShadowCaster(target);
+
+      // النقاط
+      let score = 0;
+      const scoreText = document.getElementById("score");
+
+      // نظام الجسيمات (شرر إطلاق النار)
+      const sparkSystem = new BABYLON.ParticleSystem("sparks", 100, scene);
+      sparkSystem.particleTexture = new BABYLON.Texture("https://playground.babylonjs.com/textures/flare.png", scene);
+      sparkSystem.minEmitBox = new BABYLON.Vector3(0, 0, 0);
+      sparkSystem.maxEmitBox = new BABYLON.Vector3(0, 0, 0);
+      sparkSystem.color1 = new BABYLON.Color4(1, 0.5, 0, 1);
+      sparkSystem.color2 = new BABYLON.Color4(1, 1, 0, 1);
+      sparkSystem.colorDead = new BABYLON.Color4(0, 0, 0, 0);
+      sparkSystem.minSize = 0.1;
+      sparkSystem.maxSize = 0.3;
+      sparkSystem.minLifeTime = 0.1;
+      sparkSystem.maxLifeTime = 0.2;
+      sparkSystem.emitRate = 50;
+      sparkSystem.direction1 = new BABYLON.Vector3(0.5, 0.5, 1);
+      sparkSystem.direction2 = new BABYLON.Vector3(-0.5, 0.5, 1);
+      sparkSystem.minEmitPower = 1;
+      sparkSystem.maxEmitPower = 3;
+      sparkSystem.updateSpeed = 0.02;
+
+      // إطلاق النار عند النقر
+      window.addEventListener("click", () => {
+        const forward = camera.getDirection(BABYLON.Axis.Z);
+        const muzzle = camera.position.add(forward.scale(1));
+        sparkSystem.emitter = muzzle;
+        sparkSystem.manualEmitCount = 30;
+
+        const ray = scene.createPickingRay(scene.pointerX, scene.pointerY, BABYLON.Matrix.Identity(), camera);
+        const hit = scene.pickWithRay(ray);
+        if (hit.pickedMesh === target) {
+          score += 10;
+          scoreText.innerText = "Score: " + score;
+          target.position = new BABYLON.Vector3(Math.random() * 10 - 5, 1.5, Math.random() * 10 + 2);
+        }
+      });
+
+      return scene;
+    };
+
+    const scene = createScene();
+    engine.runRenderLoop(() => scene.render());
+    window.addEventListener("resize", () => engine.resize());
+
+    // زر Full Screen
+    const fullscreenBtn = document.getElementById("fullscreenBtn");
+    fullscreenBtn.addEventListener("click", () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          alert(`Error attempting to enable full-screen mode: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    });
+  </script>
+</body>
+</html>
