@@ -76,7 +76,7 @@
         createBuilding(x, z, width, height, depth);
     }
 
-    // تصميم شخصية أفضل
+    // الشخصية المركبة
     const characterGroup = new THREE.Group();
 
     const body = new THREE.Mesh(
@@ -87,7 +87,7 @@
     characterGroup.add(body);
 
     const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5, 32, 32),
+        new THREE.SphereGeometry(0.5),
         new THREE.MeshLambertMaterial({ color: 0xffcc99 })
     );
     head.position.y = 2.5;
@@ -120,8 +120,13 @@
     scene.add(characterGroup);
 
     const keysPressed = {};
-    document.addEventListener('keydown', (e) => keysPressed[e.key] = true);
-    document.addEventListener('keyup', (e) => keysPressed[e.key] = false);
+    document.addEventListener('keydown', (e) => keysPressed[e.key.toLowerCase()] = true);
+    document.addEventListener('keyup', (e) => keysPressed[e.key.toLowerCase()] = false);
+
+    let velocityY = 0;
+    const gravity = -0.01;
+    const jumpSpeed = 0.25;
+    let onGround = true;
 
     function detectCollisionWithBox(obj1, obj2) {
         obj1.traverse(child => {
@@ -136,13 +141,13 @@
     }
 
     function updateMovement() {
-        const moveDistance = 0.3;
+        const moveDistance = 0.2;
         const moveDirection = new THREE.Vector3();
 
-        if (keysPressed['ArrowUp']) moveDirection.z -= moveDistance;
-        if (keysPressed['ArrowDown']) moveDirection.z += moveDistance;
-        if (keysPressed['ArrowLeft']) moveDirection.x -= moveDistance;
-        if (keysPressed['ArrowRight']) moveDirection.x += moveDistance;
+        if (keysPressed['w']) moveDirection.z -= moveDistance;
+        if (keysPressed['s']) moveDirection.z += moveDistance;
+        if (keysPressed['a']) moveDirection.x -= moveDistance;
+        if (keysPressed['d']) moveDirection.x += moveDistance;
 
         if (moveDirection.length() > 0) {
             const newPosition = characterGroup.position.clone().add(moveDirection);
@@ -156,6 +161,21 @@
             }
 
             characterGroup.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
+        }
+
+        // القفز
+        if (keysPressed[' '] && onGround) {
+            velocityY = jumpSpeed;
+            onGround = false;
+        }
+
+        velocityY += gravity;
+        characterGroup.position.y += velocityY;
+
+        if (characterGroup.position.y <= 0) {
+            characterGroup.position.y = 0;
+            velocityY = 0;
+            onGround = true;
         }
     }
 
