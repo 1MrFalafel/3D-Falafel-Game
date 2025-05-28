@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Falafel Games | Sudoku</title>
-          <link rel="icon" href="Sudoku.png" type="png">
+    <link rel="icon" href="Sudoku.png" type="png">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -78,27 +78,6 @@
         button:hover {
             background-color: #0056b3;
         }
-        /* Fullscreen styles */
-        .sudoku-board.fullscreen {
-            width: 100vw !important;
-            height: 100vw !important; /* مربع بالكامل */
-            max-width: 100vw !important;
-            max-height: 100vw !important;
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: 9999;
-            background-color: white;
-            padding: 10px;
-            box-sizing: border-box;
-        }
-        .sudoku-board.fullscreen .cell {
-            width: calc(100vw / 9 - 4px);
-            height: calc(100vw / 9 - 4px);
-        }
-        .sudoku-board.fullscreen .cell input {
-            font-size: calc(100vw / 18);
-        }
     </style>
 </head>
 <body>
@@ -111,7 +90,6 @@
         <button onclick="newGame()">لعبة جديدة</button>
         <button onclick="solveSudoku()">حل اللغز</button>
         <button onclick="checkSolution()">فحص الحل</button>
-        <button id="fullscreenBtn">شاشة كاملة</button>
     </div>
 
 <script>
@@ -298,30 +276,6 @@
 
         alert(valid ? 'الحل صحيح!' : 'يوجد أخطاء في الحل!');
     }
-
-    // Fullscreen button functionality
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    const sudokuBoard = document.getElementById('sudoku-board');
-
-    fullscreenBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-            sudokuBoard.requestFullscreen().catch(err => {
-                alert(`خطأ أثناء محاولة تفعيل وضع الشاشة الكاملة: ${err.message} (${err.name})`);
-            });
-        } else {
-            document.exitFullscreen();
-        }
-    });
-
-    document.addEventListener('fullscreenchange', () => {
-        if (document.fullscreenElement) {
-            sudokuBoard.classList.add('fullscreen');
-            fullscreenBtn.textContent = 'خروج من الشاشة الكاملة';
-        } else {
-            sudokuBoard.classList.remove('fullscreen');
-            fullscreenBtn.textContent = 'شاشة كاملة';
-        }
-    });
 
     // بدء اللعبة تلقائياً عند تحميل الصفحة
     newGame();
