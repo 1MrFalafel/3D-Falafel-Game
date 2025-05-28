@@ -1,38 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="ar">
 <head>
-  <title>Falafel Games|Shooter</title>
-        <link rel="icon" href="Shooter.png" type="png">
-  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <meta charset="UTF-8" />
+  <title>Falafel Games | Shooter</title>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      width: 100%;
-      height: 100%;
-      background-color: #222;
-    }
-    #renderCanvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
+    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    canvas { display: block; }
     #score {
-      position: absolute;
+      position: fixed;
+      top: 10px; right: 10px;
+      color: #fff;
+      font-size: 24px;
+      background: rgba(0,0,0,0.5);
+      padding: 8px 15px;
+      border-radius: 8px;
+      user-select: none;
+      z-index: 100;
+    }
+    #instructions {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
       color: white;
       font-size: 20px;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
-      font-family: Arial, sans-serif;
+      background: rgba(0,0,0,0.7);
+      padding: 20px 30px;
+      border-radius: 10px;
+      cursor: pointer;
       user-select: none;
+      z-index: 101;
     }
     #fullscreenBtn {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 10;
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
       background: #444;
       color: white;
       border: none;
@@ -42,155 +44,309 @@
       border-radius: 4px;
       user-select: none;
       transition: background 0.3s;
+      z-index: 100;
     }
     #fullscreenBtn:hover {
       background: #666;
     }
+    #crosshair {
+      position: fixed;
+      top: 50%; left: 50%;
+      width: 20px; height: 20px;
+      transform: translate(-50%, -50%);
+      z-index: 100;
+      display: none;
+      pointer-events: none;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: #ff0000;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    #crosshair::before {
+      width: 2px; height: 20px;
+    }
+    #crosshair::after {
+      width: 20px; height: 2px;
+    }
   </style>
 </head>
 <body>
-  <div id="score">Score: 0</div>
-  <button id="fullscreenBtn">Full Screen</button>
-  <canvas id="renderCanvas"></canvas>
+<div id="score">النقاط: 0 | أعلى نقاط: 0</div>
+<div id="instructions">انقر هنا لبدء اللعب وفتح تحكم الماوس</div>
+<button id="fullscreenBtn">ملء الشاشة</button>
+<div id="crosshair"></div>
 
-  <script>
-    const canvas = document.getElementById("renderCanvas");
-    const engine = new BABYLON.Engine(canvas, true);
+<script type="module">
+  import * as THREE from 'https://esm.sh/three@0.152.2';
 
-    const createScene = function () {
-      const scene = new BABYLON.Scene(engine);
+  // === إعداد المشهد والكاميرا والرندر ===
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
 
-      // الكاميرا
-      const camera = new BABYLON.UniversalCamera("camera", new BABYLON.Vector3(0, 1.5, -10), scene);
-      camera.attachControl(canvas, true);
-      // ثبّت ارتفاع الكاميرا
-      scene.onBeforeRenderObservable.add(() => {
-        camera.position.y = 1.5;
-      });
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 2, 5);
 
-      // ضوء الشمس - Directional Light
-      const sun = new BABYLON.DirectionalLight("sun", new BABYLON.Vector3(-1, -2, 1), scene);
-      sun.position = new BABYLON.Vector3(20, 40, -20);
-      sun.intensity = 1.0;
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  document.body.appendChild(renderer.domElement);
 
-      // تفعيل الظلال لضوء الشمس
-      const shadowGenerator = new BABYLON.ShadowGenerator(1024, sun);
-      shadowGenerator.useBlurExponentialShadowMap = true;
-      shadowGenerator.blurKernel = 32;
+  // === إضاءة ===
+  const sunLight = new THREE.DirectionalLight(0xfff5e1, 1.5);
+  sunLight.position.set(10, 20, 10);
+  sunLight.castShadow = true;
+  scene.add(sunLight);
 
-      // ضوء محيطي HemisphericLight لتحسين الإضاءة العامة
-      const hemiLight = new BABYLON.HemisphericLight("hemiLight", new BABYLON.Vector3(0, 1, 0), scene);
-      hemiLight.intensity = 0.3;
-      hemiLight.diffuse = new BABYLON.Color3(0.6, 0.6, 0.7);
-      hemiLight.specular = new BABYLON.Color3(0.2, 0.2, 0.25);
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+  scene.add(ambientLight);
 
-      // الأرض
-      const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
-      const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
-      groundMat.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.1);
-      ground.material = groundMat;
-      ground.receiveShadows = true;
+  // === الأرضية ===
+  const floorGeometry = new THREE.PlaneGeometry(50, 50);
+  const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x228833 });
+  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
 
-      // الهدف
-      const target = BABYLON.MeshBuilder.CreateCylinder("target", {
-        diameterTop: 1,
-        diameterBottom: 1,
-        height: 0.1,
-        tessellation: 64
-      }, scene);
-      target.position = new BABYLON.Vector3(Math.random() * 10 - 5, 1.5, Math.random() * 10 + 2);
-      target.rotation.x = Math.PI / 2;
+  // === اللاعب ===
+  const player = new THREE.Group();
+  player.position.y = 0.75;
+  scene.add(player);
 
-      // رسم نسيج الدائرة الملونة للهدف
-      const textureSize = 512;
-      const dynamicTexture = new BABYLON.DynamicTexture("dynamicTexture", {width: textureSize, height: textureSize}, scene, false);
-      const ctx = dynamicTexture.getContext();
+  const bodyGeometry = new THREE.BoxGeometry(0.5, 1.5, 0.3);
+  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x5555ff });
+  const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+  body.castShadow = true;
+  player.add(body);
 
-      ctx.clearRect(0, 0, textureSize, textureSize);
+  const rpgGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 16);
+  const rpgMaterial = new THREE.MeshStandardMaterial({ color: 0x882222 });
+  const rpg = new THREE.Mesh(rpgGeometry, rpgMaterial);
+  rpg.rotation.z = Math.PI / 2;
+  rpg.position.set(-0.25, 1.1, 0.15);
+  player.add(rpg);
 
-      const center = textureSize / 2;
-      const rings = [
-        {radius: 200, color: "black"},
-        {radius: 160, color: "white"},
-        {radius: 120, color: "red"},
-        {radius: 80,  color: "white"},
-        {radius: 40,  color: "black"},
-      ];
+  // === تحكم الماوس ===
+  let pointerLocked = false;
+  const instructions = document.getElementById('instructions');
+  const crosshair = document.getElementById('crosshair');
+  const scoreDiv = document.getElementById('score');
 
-      rings.forEach(ring => {
-        ctx.beginPath();
-        ctx.fillStyle = ring.color;
-        ctx.arc(center, center, ring.radius, 0, 2 * Math.PI);
-        ctx.fill();
-      });
+  instructions.addEventListener('click', () => {
+    renderer.domElement.requestPointerLock();
+  });
 
-      dynamicTexture.update();
+  document.addEventListener('pointerlockchange', () => {
+    pointerLocked = (document.pointerLockElement === renderer.domElement);
+    instructions.style.display = pointerLocked ? 'none' : 'block';
+    crosshair.style.display = pointerLocked ? 'block' : 'none';
+  });
 
-      const targetMaterial = new BABYLON.StandardMaterial("targetMat", scene);
-      targetMaterial.diffuseTexture = dynamicTexture;
-      targetMaterial.specularColor = new BABYLON.Color3(0, 0, 0);
-      target.material = targetMaterial;
+  let yaw = 0;
+  let pitch = 0;
+  const pitchLimit = Math.PI / 3;
+  const sensitivity = 0.002;
 
-      // السماح للهدف بإسقاط الظل
-      shadowGenerator.addShadowCaster(target);
+  window.addEventListener('mousemove', e => {
+    if (!pointerLocked) return;
+    yaw -= e.movementX * sensitivity;
+    pitch -= e.movementY * sensitivity;
+    pitch = Math.max(-pitchLimit, Math.min(pitchLimit, pitch));
+  });
 
-      // النقاط
-      let score = 0;
-      const scoreText = document.getElementById("score");
+  // === تحرك اللاعب (WASD + الأسهم) ===
+  const keys = { forward: false, backward: false, left: false, right: false };
+  window.addEventListener('keydown', e => {
+    switch (e.key.toLowerCase()) {
+      case 'w':
+      case 'arrowup': keys.forward = true; break;
+      case 's':
+      case 'arrowdown': keys.backward = true; break;
+      case 'a':
+      case 'arrowleft': keys.left = true; break;
+      case 'd':
+      case 'arrowright': keys.right = true; break;
+    }
+  });
+  window.addEventListener('keyup', e => {
+    switch (e.key.toLowerCase()) {
+      case 'w':
+      case 'arrowup': keys.forward = false; break;
+      case 's':
+      case 'arrowdown': keys.backward = false; break;
+      case 'a':
+      case 'arrowleft': keys.left = false; break;
+      case 'd':
+      case 'arrowright': keys.right = false; break;
+    }
+  });
 
-      // نظام الجسيمات (شرر إطلاق النار)
-      const sparkSystem = new BABYLON.ParticleSystem("sparks", 100, scene);
-      sparkSystem.particleTexture = new BABYLON.Texture("https://playground.babylonjs.com/textures/flare.png", scene);
-      sparkSystem.minEmitBox = new BABYLON.Vector3(0, 0, 0);
-      sparkSystem.maxEmitBox = new BABYLON.Vector3(0, 0, 0);
-      sparkSystem.color1 = new BABYLON.Color4(1, 0.5, 0, 1);
-      sparkSystem.color2 = new BABYLON.Color4(1, 1, 0, 1);
-      sparkSystem.colorDead = new BABYLON.Color4(0, 0, 0, 0);
-      sparkSystem.minSize = 0.1;
-      sparkSystem.maxSize = 0.3;
-      sparkSystem.minLifeTime = 0.1;
-      sparkSystem.maxLifeTime = 0.2;
-      sparkSystem.emitRate = 50;
-      sparkSystem.direction1 = new BABYLON.Vector3(0.5, 0.5, 1);
-      sparkSystem.direction2 = new BABYLON.Vector3(-0.5, 0.5, 1);
-      sparkSystem.minEmitPower = 1;
-      sparkSystem.maxEmitPower = 3;
-      sparkSystem.updateSpeed = 0.02;
+  // === الأهداف ===
+  const targets = [];
+  const targetGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+  const targetMaterial = new THREE.MeshStandardMaterial({ color: 0x008800 });
 
-      // إطلاق النار عند النقر
-      window.addEventListener("click", () => {
-        const forward = camera.getDirection(BABYLON.Axis.Z);
-        const muzzle = camera.position.add(forward.scale(1));
-        sparkSystem.emitter = muzzle;
-        sparkSystem.manualEmitCount = 30;
+  function createTarget(position) {
+    const target = new THREE.Mesh(targetGeometry, targetMaterial);
+    target.position.copy(position);
+    target.castShadow = true;
+    scene.add(target);
+    targets.push(target);
+  }
 
-        const ray = scene.createPickingRay(scene.pointerX, scene.pointerY, BABYLON.Matrix.Identity(), camera);
-        const hit = scene.pickWithRay(ray);
-        if (hit.pickedMesh === target) {
-          score += 10;
-          scoreText.innerText = "Score: " + score;
-          target.position = new BABYLON.Vector3(Math.random() * 10 - 5, 1.5, Math.random() * 10 + 2);
+  // إنشاء أهداف عشوائية
+  function spawnTargets(count = 5) {
+    for (let i = 0; i < count; i++) {
+      const x = (Math.random() - 0.5) * 30;
+      const z = (Math.random() - 0.5) * 30;
+      createTarget(new THREE.Vector3(x, 0.5, z));
+    }
+  }
+  spawnTargets();
+
+  // === نظام النقاط ===
+  let score = 0;
+  let highScore = localStorage.getItem('highScore') || 0;
+
+  function updateScore(points) {
+    score += points;
+    if (score > highScore) {
+      highScore = score;
+      localStorage.setItem('highScore', highScore);
+    }
+    scoreDiv.textContent = `النقاط: ${score} | أعلى نقاط: ${highScore}`;
+  }
+
+  // === الصواريخ ===
+  const rockets = [];
+  const rocketGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 12);
+  const rocketMaterial = new THREE.MeshStandardMaterial({ color: 0xff2222 });
+
+  function createRocket() {
+    const rocket = new THREE.Mesh(rocketGeometry, rocketMaterial);
+    rocket.rotation.x = Math.PI / 2; // ليتجه للأمام في محور Z
+    rocket.position.copy(camera.position);
+    rocket.position.y -= 0.3; // على مستوى اليد تقريباً
+    rocket.castShadow = true;
+
+    // تحديد اتجاه الصاروخ حسب اتجاه الكاميرا (yaw + pitch)
+    const direction = new THREE.Vector3(0, 0, -1);
+    direction.applyEuler(camera.rotation);
+    rocket.userData = { direction };
+    scene.add(rocket);
+    rockets.push(rocket);
+  }
+
+  // اطلاق الصاروخ عند ضغط زر الماوس الأيسر
+  window.addEventListener('mousedown', (e) => {
+    if (pointerLocked && e.button === 0) {
+      createRocket();
+    }
+  });
+
+  // تحديث الصواريخ: تحرك، تصادم، حذف
+  const rocketSpeed = 25;
+  function updateRockets(delta) {
+    for (let i = rockets.length - 1; i >= 0; i--) {
+      const rocket = rockets[i];
+      rocket.position.addScaledVector(rocket.userData.direction, rocketSpeed * delta);
+
+      // تحقق من الاصطدام مع الأهداف
+      for (let j = targets.length - 1; j >= 0; j--) {
+        const target = targets[j];
+        const dist = rocket.position.distanceTo(target.position);
+        if (dist < 0.6) { // مسافة الاصطدام تقريباً نصف قطر الهدف + نصف قطر الصاروخ
+          // إزالة الهدف والصاروخ من المشهد والقوائم
+          scene.remove(target);
+          targets.splice(j, 1);
+
+          scene.remove(rocket);
+          rockets.splice(i, 1);
+
+          // إضافة نقاط
+          updateScore(10);
+
+          // إعادة توليد هدف جديد بدل المفقود للحفاظ على التحدي
+          spawnTargets(1);
+          break;
         }
-      });
-
-      return scene;
-    };
-
-    const scene = createScene();
-    engine.runRenderLoop(() => scene.render());
-    window.addEventListener("resize", () => engine.resize());
-
-    // زر Full Screen
-    const fullscreenBtn = document.getElementById("fullscreenBtn");
-    fullscreenBtn.addEventListener("click", () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {
-          alert(`Error attempting to enable full-screen mode: ${err.message}`);
-        });
-      } else {
-        document.exitFullscreen();
       }
-    });
-  </script>
+
+      // حذف الصاروخ إذا خرج بعيداً
+      if (rocket.position.length() > 100) {
+        scene.remove(rocket);
+        rockets.splice(i, 1);
+      }
+    }
+  }
+
+  // === تحديث حركة اللاعب ===
+  const playerSpeed = 6;
+  function updatePlayer(delta) {
+    // تحديث اتجاه الكاميرا
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = yaw;
+    camera.rotation.x = pitch;
+
+    // تحديث موقع اللاعب بناء على المفاتيح
+    const direction = new THREE.Vector3();
+
+    if (keys.forward) direction.z -= 1;
+    if (keys.backward) direction.z += 1;
+    if (keys.left) direction.x -= 1;
+    if (keys.right) direction.x += 1;
+
+    if (direction.length() > 0) {
+      direction.normalize();
+      // تحويل الاتجاه بناء على دوران اللاعب (yaw)
+      const angle = yaw;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const dx = direction.x * cos - direction.z * sin;
+      const dz = direction.x * sin + direction.z * cos;
+
+      player.position.x += dx * playerSpeed * delta;
+      player.position.z += dz * playerSpeed * delta;
+    }
+
+    // تحديث موقع الكاميرا بالنسبة للاعب
+    camera.position.copy(player.position);
+    camera.position.y += 1.5; // ارتفاع الكاميرا فوق اللاعب
+  }
+
+  // === الزر ملء الشاشة ===
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+  fullscreenBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  });
+
+  // === تغيير حجم النافذة ===
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // === حلقة التحديث الرئيسية ===
+  const clock = new THREE.Clock();
+  function animate() {
+    const delta = clock.getDelta();
+
+    updatePlayer(delta);
+    updateRockets(delta);
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+</script>
 </body>
 </html>
