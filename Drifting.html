@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Falafel Games | Drifting</title>
-            <link rel="icon" href="Drifting.png" type="png">
+  <link rel="icon" href="Drifting.png" type="png">
   <style>
     body { margin: 0; overflow: hidden; background: #87ceeb; font-family: sans-serif; }
     canvas { display: block; }
@@ -71,12 +71,7 @@
       z-index: 5;
     }
 
-    #restartButton {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 5;
-    }
+    /* حذفت #restartButton من هنا لأنه تم حذف الزر */
   </style>
 </head>
 <body>
@@ -102,7 +97,6 @@
 </div>
 
 <div id="score">النقاط: 0</div>
-<button id="restartButton" onclick="restartGame()">🔁 إعادة</button>
 
 <!-- أصوات -->
 <audio id="startSound" src="start.mp3"></audio>
@@ -319,23 +313,15 @@
   }
 
   function startGame() {
-    if (isGameStarted) return;
+    if(isGameStarted) return;
+
     isGameStarted = true;
-    document.getElementById('startScreen').style.display = 'none';
-    document.getElementById('startSound').play();
+    document.getElementById("startScreen").style.display = "none";
     init();
+    document.getElementById('startSound').play();
     animate();
   }
 
-  function restartGame() {
-    location.reload();
-  }
-
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
 </script>
 </body>
 </html>
