@@ -2,321 +2,325 @@
 <html lang="ar">
 <head>
   <meta charset="UTF-8" />
-  <title>Falafel Games | Shooter</title>
-  <link rel="icon" href="Shooter.png" type="png">
+  <title>Falafel Games | Drifting</title>
+  <link rel="icon" href="Drifting.png" type="png">
   <style>
-    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    body { margin: 0; overflow: hidden; background: #87ceeb; font-family: sans-serif; }
     canvas { display: block; }
-    #score {
-      position: fixed;
-      top: 10px; right: 10px;
-      color: #fff;
-      font-size: 24px;
-      background: rgba(0,0,0,0.5);
-      padding: 8px 15px;
-      border-radius: 8px;
-      user-select: none;
-      z-index: 100;
+
+    #startScreen {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
     }
-    #instructions {
-      position: fixed;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
+
+    #startScreen h1 { font-size: 3em; margin-bottom: 20px; }
+
+    .colorChoice, .worldOption {
+      width: 50px; height: 50px;
+      border-radius: 10px;
+      margin: 5px;
+      border: 3px solid white;
+      cursor: pointer;
+      display: inline-block;
+    }
+
+    .colorChoice.selected, .worldOption.selected {
+      border-color: yellow;
+    }
+
+    #colorChoices, #worldChoices {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .worldOption {
+      width: auto;
+      padding: 10px 20px;
+      background: #222;
+      color: white;
+      font-size: 1em;
+      text-align: center;
+    }
+
+    button {
+      padding: 10px 25px;
+      font-size: 1.2em;
+      cursor: pointer;
+      border-radius: 8px;
+      background: #ff8800;
+      color: white;
+      border: none;
+    }
+
+    #score {
+      position: absolute;
+      top: 10px;
+      left: 10px;
       color: white;
       font-size: 20px;
-      background: rgba(0,0,0,0.7);
-      padding: 20px 30px;
-      border-radius: 10px;
-      cursor: pointer;
-      user-select: none;
-      z-index: 101;
+      z-index: 5;
     }
-    #crosshair {
-      position: fixed;
-      top: 50%; left: 50%;
-      width: 20px; height: 20px;
-      transform: translate(-50%, -50%);
-      z-index: 100;
-      display: none;
-      pointer-events: none;
-    }
-    #crosshair::before, #crosshair::after {
-      content: '';
-      position: absolute;
-      background: #ff0000;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-    }
-    #crosshair::before {
-      width: 2px; height: 20px;
-    }
-    #crosshair::after {
-      width: 20px; height: 2px;
-    }
+
+    /* حذفت #restartButton من هنا لأنه تم حذف الزر */
   </style>
 </head>
 <body>
-<div id="score">النقاط: 0 | أعلى نقاط: 0</div>
-<div id="instructions">انقر هنا لبدء اللعب وفتح تحكم الماوس</div>
-<div id="crosshair"></div>
 
-<script type="module">
-  import * as THREE from 'https://esm.sh/three@0.152.2';
+<div id="startScreen">
+  <h1>Falafel Drifter</h1>
+  <p>اختر لون السيارة:</p>
+  <div id="colorChoices">
+    <div class="colorChoice selected" style="background: red;" data-color="#ff0000"></div>
+    <div class="colorChoice" style="background: blue;" data-color="#0000ff"></div>
+    <div class="colorChoice" style="background: green;" data-color="#00ff00"></div>
+    <div class="colorChoice" style="background: black;" data-color="#000000"></div>
+    <div class="colorChoice" style="background: orange;" data-color="#ffa500"></div>
+  </div>
 
-  // === إعداد المشهد والكاميرا والرندر ===
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x87ceeb);
+  <p>اختر العالم:</p>
+  <div id="worldChoices">
+    <div class="worldOption selected" data-world="city">🌆 المدينة</div>
+    <div class="worldOption" data-world="desert">🏜️ الصحراء</div>
+  </div>
 
-  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 2, 5);
+  <button onclick="startGame()">ابدأ</button>
+</div>
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.shadowMap.enabled = true;
-  document.body.appendChild(renderer.domElement);
+<div id="score">النقاط: 0</div>
 
-  // === إضاءة ===
-  const sunLight = new THREE.DirectionalLight(0xfff5e1, 1.5);
-  sunLight.position.set(10, 20, 10);
-  sunLight.castShadow = true;
-  scene.add(sunLight);
+<!-- أصوات -->
+<audio id="startSound" src="start.mp3"></audio>
+<audio id="driftSound" src="drift.mp3"></audio>
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
-  scene.add(ambientLight);
-
-  // === الأرضية ===
-  const floorGeometry = new THREE.PlaneGeometry(50, 50);
-  const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x228833 });
-  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-  floor.rotation.x = -Math.PI / 2;
-  floor.receiveShadow = true;
-  scene.add(floor);
-
-  // === اللاعب ===
-  const player = new THREE.Group();
-  player.position.y = 0.75;
-  scene.add(player);
-
-  const bodyGeometry = new THREE.BoxGeometry(0.5, 1.5, 0.3);
-  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x5555ff });
-  const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-  body.castShadow = true;
-  player.add(body);
-
-  const rpgGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 16);
-  const rpgMaterial = new THREE.MeshStandardMaterial({ color: 0x882222 });
-  const rpg = new THREE.Mesh(rpgGeometry, rpgMaterial);
-  rpg.rotation.z = Math.PI / 2;
-  rpg.position.set(-0.25, 1.1, 0.15);
-  player.add(rpg);
-
-  // === تحكم الماوس ===
-  let pointerLocked = false;
-  const instructions = document.getElementById('instructions');
-  const crosshair = document.getElementById('crosshair');
-  const scoreDiv = document.getElementById('score');
-
-  instructions.addEventListener('click', () => {
-    renderer.domElement.requestPointerLock();
-  });
-
-  document.addEventListener('pointerlockchange', () => {
-    pointerLocked = (document.pointerLockElement === renderer.domElement);
-    instructions.style.display = pointerLocked ? 'none' : 'block';
-    crosshair.style.display = pointerLocked ? 'block' : 'none';
-  });
-
-  let yaw = 0;
-  let pitch = 0;
-  const pitchLimit = Math.PI / 3;
-  const sensitivity = 0.002;
-
-  window.addEventListener('mousemove', e => {
-    if (!pointerLocked) return;
-    yaw -= e.movementX * sensitivity;
-    pitch -= e.movementY * sensitivity;
-    pitch = Math.max(-pitchLimit, Math.min(pitchLimit, pitch));
-  });
-
-  // === تحرك اللاعب (WASD + الأسهم) ===
-  const keys = { forward: false, backward: false, left: false, right: false };
-  window.addEventListener('keydown', e => {
-    switch (e.key.toLowerCase()) {
-      case 'w':
-      case 'arrowup': keys.forward = true; break;
-      case 's':
-      case 'arrowdown': keys.backward = true; break;
-      case 'a':
-      case 'arrowleft': keys.left = true; break;
-      case 'd':
-      case 'arrowright': keys.right = true; break;
-    }
-  });
-  window.addEventListener('keyup', e => {
-    switch (e.key.toLowerCase()) {
-      case 'w':
-      case 'arrowup': keys.forward = false; break;
-      case 's':
-      case 'arrowdown': keys.backward = false; break;
-      case 'a':
-      case 'arrowleft': keys.left = false; break;
-      case 'd':
-      case 'arrowright': keys.right = false; break;
-    }
-  });
-
-  // === الأهداف ===
-  const targets = [];
-  const targetGeometry = new THREE.SphereGeometry(0.5, 16, 16);
-  const targetMaterial = new THREE.MeshStandardMaterial({ color: 0x008800 });
-
-  function createTarget(position) {
-    const target = new THREE.Mesh(targetGeometry, targetMaterial);
-    target.position.copy(position);
-    target.castShadow = true;
-    scene.add(target);
-    targets.push(target);
-  }
-
-  // إنشاء أهداف عشوائية
-  function spawnTargets(count = 5) {
-    for (let i = 0; i < count; i++) {
-      const x = (Math.random() - 0.5) * 30;
-      const z = (Math.random() - 0.5) * 30;
-      createTarget(new THREE.Vector3(x, 0.5, z));
-    }
-  }
-  spawnTargets();
-
-  // === نظام النقاط ===
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  let scene, camera, renderer, car, keys = {}, velocity = 0;
+  let carColor = "#ff0000", worldType = "city";
+  const acceleration = 0.02, deceleration = 0.01, maxSpeed = 3, turnSpeed = 0.05;
+  const smokeParticles = [];
+  let isGameStarted = false;
   let score = 0;
-  let highScore = localStorage.getItem('highScore') || 0;
+  let driftCooldown = 0;
 
-  function updateScore(points) {
-    score += points;
-    if (score > highScore) {
-      highScore = score;
-      localStorage.setItem('highScore', highScore);
-    }
-    scoreDiv.textContent = `النقاط: ${score} | أعلى نقاط: ${highScore}`;
-  }
-
-  // === الصواريخ ===
-  const rockets = [];
-  const rocketGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 12);
-  const rocketMaterial = new THREE.MeshStandardMaterial({ color: 0xff2222 });
-
-  function createRocket() {
-    const rocket = new THREE.Mesh(rocketGeometry, rocketMaterial);
-    rocket.rotation.x = Math.PI / 2; // ليتجه للأمام في محور Z
-    rocket.position.copy(camera.position);
-    rocket.position.y -= 0.3; // على مستوى اليد تقريباً
-    rocket.castShadow = true;
-
-    // تحديد اتجاه الصاروخ حسب اتجاه الكاميرا (yaw + pitch)
-    const direction = new THREE.Vector3(0, 0, -1);
-    direction.applyEuler(camera.rotation);
-    rocket.userData = { direction };
-    scene.add(rocket);
-    rockets.push(rocket);
-  }
-
-  // اطلاق الصاروخ عند ضغط زر الماوس الأيسر
-  window.addEventListener('mousedown', (e) => {
-    if (pointerLocked && e.button === 0) {
-      createRocket();
-    }
+  document.querySelectorAll('.colorChoice').forEach(choice => {
+    choice.addEventListener('click', () => {
+      document.querySelectorAll('.colorChoice').forEach(c => c.classList.remove('selected'));
+      choice.classList.add('selected');
+      carColor = choice.dataset.color;
+    });
   });
 
-  // تحديث الصواريخ: تحرك، تصادم، حذف
-  const rocketSpeed = 25;
-  function updateRockets(delta) {
-    for (let i = rockets.length - 1; i >= 0; i--) {
-      const rocket = rockets[i];
-      rocket.position.addScaledVector(rocket.userData.direction, rocketSpeed * delta);
+  document.querySelectorAll('.worldOption').forEach(option => {
+    option.addEventListener('click', () => {
+      document.querySelectorAll('.worldOption').forEach(o => o.classList.remove('selected'));
+      option.classList.add('selected');
+      worldType = option.dataset.world;
+    });
+  });
 
-      // تحقق من الاصطدام مع الأهداف
-      for (let j = targets.length - 1; j >= 0; j--) {
-        const target = targets[j];
-        const dist = rocket.position.distanceTo(target.position);
-        if (dist < 0.6) { // مسافة الاصطدام تقريباً نصف قطر الهدف + نصف قطر الصاروخ
-          // إزالة الهدف والصاروخ من المشهد والقوائم
-          scene.remove(target);
-          targets.splice(j, 1);
+  function createSmokeTexture() {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(size/2, size/2, size/8, size/2, size/2, size/2);
+    gradient.addColorStop(0, 'rgba(200,200,200,0.6)');
+    gradient.addColorStop(0.3, 'rgba(120,120,120,0.3)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    return new THREE.CanvasTexture(canvas);
+  }
 
-          scene.remove(rocket);
-          rockets.splice(i, 1);
+  function createSmokeParticle(position){
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x555555, transparent: true, opacity: 0.5,
+      depthWrite: false, map: createSmokeTexture(), side: THREE.DoubleSide
+    });
+    const particle = new THREE.Mesh(geometry, material);
+    particle.position.copy(position);
+    particle.rotation.x = -Math.PI / 2;
+    particle.life = 1;
+    particle.size = 1 + Math.random();
+    particle.speedY = 0.02 + Math.random() * 0.01;
+    smokeParticles.push(particle);
+    scene.add(particle);
+  }
 
-          // إضافة نقاط
-          updateScore(10);
-
-          // إعادة توليد هدف جديد بدل المفقود للحفاظ على التحدي
-          spawnTargets(1);
-          break;
-        }
-      }
-
-      // حذف الصاروخ إذا خرج بعيداً
-      if (rocket.position.length() > 100) {
-        scene.remove(rocket);
-        rockets.splice(i, 1);
+  function animateSmoke(){
+    for(let i = smokeParticles.length - 1; i >= 0; i--) {
+      const p = smokeParticles[i];
+      p.position.y += p.speedY;
+      p.material.opacity = p.life * 0.5;
+      p.scale.set(p.size * (1 - p.life), p.size * (1 - p.life), 1);
+      p.life -= 0.01;
+      if (p.life <= 0) {
+        scene.remove(p);
+        smokeParticles.splice(i, 1);
       }
     }
   }
 
-  // === تحديث حركة اللاعب ===
-  const playerSpeed = 6;
-  function updatePlayer(delta) {
-    // تحديث اتجاه الكاميرا
-    camera.rotation.order = 'YXZ';
-    camera.rotation.y = yaw;
-    camera.rotation.x = pitch;
+  function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb);
 
-    // تحديث موقع اللاعب بناء على المفاتيح
-    const direction = new THREE.Vector3();
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 5, 15);
 
-    if (keys.forward) direction.z -= 1;
-    if (keys.backward) direction.z += 1;
-    if (keys.left) direction.x -= 1;
-    if (keys.right) direction.x += 1;
-
-    if (direction.length() > 0) {
-      direction.normalize();
-      // تحويل الاتجاه بناء على دوران اللاعب (yaw)
-      const angle = yaw;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      const dx = direction.x * cos - direction.z * sin;
-      const dz = direction.x * sin + direction.z * cos;
-
-      player.position.x += dx * playerSpeed * delta;
-      player.position.z += dz * playerSpeed * delta;
-    }
-
-    // تحديث موقع الكاميرا بالنسبة للاعب
-    camera.position.copy(player.position);
-    camera.position.y += 1.5; // ارتفاع الكاميرا فوق اللاعب
-  }
-
-  // === تغيير حجم النافذة ===
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+    renderer = new THREE.WebGLRenderer({antialias:true});
     renderer.setSize(window.innerWidth, window.innerHeight);
-  });
+    document.body.appendChild(renderer.domElement);
 
-  // === حلقة التحديث الرئيسية ===
-  const clock = new THREE.Clock();
-  function animate() {
-    const delta = clock.getDelta();
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(300, 300),
+      new THREE.MeshStandardMaterial({color: 0x444444})
+    );
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
 
-    updatePlayer(delta);
-    updateRockets(delta);
+    const road = new THREE.Mesh(
+      new THREE.PlaneGeometry(20, 300),
+      new THREE.MeshStandardMaterial({color: 0x111111})
+    );
+    road.position.y = 0.01;
+    road.rotation.x = -Math.PI / 2;
+    scene.add(road);
 
-    renderer.render(scene, camera);
-    requestAnimationFrame(animate);
+    const lineMaterial = new THREE.MeshStandardMaterial({color: 0xffffff});
+    for(let i = -140; i <= 140; i += 10){
+      const line = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.01, 4), lineMaterial);
+      line.position.set(0, 0.02, i);
+      scene.add(line);
+    }
+
+    const sun = new THREE.DirectionalLight(0xfff8e7, 1.2);
+    sun.position.set(30, 50, 30);
+    scene.add(sun);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+    car = new THREE.Group();
+    const carBody = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 4), new THREE.MeshStandardMaterial({color: carColor}));
+    carBody.position.y = 0.25;
+    car.add(carBody);
+
+    const carTop = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.4, 2), new THREE.MeshStandardMaterial({color: 0x770000}));
+    carTop.position.y = 0.7;
+    car.add(carTop);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 32);
+    const wheelMat = new THREE.MeshStandardMaterial({color: 0x222222});
+    const wheelPos = [[-0.9, 0.15, -1.5],[0.9, 0.15, -1.5],[-0.9, 0.15, 1.5],[0.9, 0.15, 1.5]];
+    for (let pos of wheelPos){
+      const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(...pos);
+      car.add(wheel);
+    }
+    car.position.y = 0.5;
+    scene.add(car);
+
+    if (worldType === "city") {
+      for(let i = -120; i <= 120; i += 30){
+        const h1 = 10 + Math.random() * 15;
+        const b1 = new THREE.Mesh(new THREE.BoxGeometry(8, h1, 8), new THREE.MeshStandardMaterial({color: new THREE.Color(`hsl(${Math.random() * 360}, 30%, 60%)`)}));
+        b1.position.set(-15, h1 / 2, i + (Math.random() * 10 - 5));
+        scene.add(b1);
+
+        const h2 = 10 + Math.random() * 15;
+        const b2 = new THREE.Mesh(new THREE.BoxGeometry(8, h2, 8), new THREE.MeshStandardMaterial({color: new THREE.Color(`hsl(${Math.random() * 360}, 30%, 60%)`)}));
+        b2.position.set(15, h2 / 2, i + (Math.random() * 10 - 5));
+        scene.add(b2);
+      }
+    } else if (worldType === "desert") {
+      const sand = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshStandardMaterial({color: 0xCCAA66}));
+      sand.rotation.x = -Math.PI / 2;
+      scene.add(sand);
+
+      for (let i = 0; i < 30; i++) {
+        const cactus = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.3, 0.3, 2 + Math.random(), 6),
+          new THREE.MeshStandardMaterial({color: 0x228833})
+        );
+        cactus.position.set(Math.random()*200 - 100, 1, Math.random()*200 - 100);
+        scene.add(cactus);
+      }
+    }
+
+    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
   }
-  animate();
+
+  function animate() {
+    if(!isGameStarted) return;
+    requestAnimationFrame(animate);
+
+    if(keys['arrowup']) { velocity += acceleration; if(velocity > maxSpeed) velocity = maxSpeed; }
+    else if(keys['arrowdown']) { velocity -= acceleration; if(velocity < -maxSpeed/2) velocity = -maxSpeed/2; }
+    else {
+      if(velocity > 0) velocity -= deceleration;
+      else if(velocity < 0) velocity += deceleration;
+      if(Math.abs(velocity) < deceleration) velocity = 0;
+    }
+
+    let turn = 0;
+    if(keys['arrowleft']) turn = 1;
+    else if(keys['arrowright']) turn = -1;
+
+    const drifting = keys['shift'] && velocity > 0.1;
+    if(drifting) {
+      car.rotation.y += turn * turnSpeed * 1.5;
+      velocity *= 0.995;
+      const rearLeft = new THREE.Vector3(-0.9, 0.2, 1.5).applyMatrix4(car.matrixWorld);
+      const rearRight = new THREE.Vector3(0.9, 0.2, 1.5).applyMatrix4(car.matrixWorld);
+      createSmokeParticle(rearLeft);
+      createSmokeParticle(rearRight);
+
+      score += 1;
+      document.getElementById("score").innerText = `النقاط: ${score}`;
+
+      if (driftCooldown <= 0) {
+        document.getElementById('driftSound').play();
+        driftCooldown = 20;
+      } else {
+        driftCooldown--;
+      }
+    } else if(velocity !== 0){
+      car.rotation.y += turn * turnSpeed * (velocity / maxSpeed);
+    }
+
+    car.position.x -= Math.sin(car.rotation.y) * velocity;
+    car.position.z -= Math.cos(car.rotation.y) * velocity;
+
+    const camOffset = new THREE.Vector3(0, 5, 15);
+    const camPos = camOffset.applyAxisAngle(new THREE.Vector3(0,1,0), car.rotation.y).add(car.position);
+    camera.position.lerp(camPos, 0.1);
+    camera.lookAt(car.position);
+
+    animateSmoke();
+    renderer.render(scene, camera);
+  }
+
+  function startGame() {
+    if(isGameStarted) return;
+
+    isGameStarted = true;
+    document.getElementById("startScreen").style.display = "none";
+    init();
+    document.getElementById('startSound').play();
+    animate();
+  }
 
 </script>
 </body>
